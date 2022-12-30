@@ -27,8 +27,7 @@ env:
   DIY_P2_SH: diy2.sh
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
-  TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
   TZ: Asia/Shanghai
 
 jobs:
@@ -49,11 +48,13 @@ jobs:
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
 
-    - name: Telegram 通知
-      if: env.TELEGRAM_TOKEN && ! contains(github.event.action, 'notg')
+    - name: PushPlus 通知
+      if: env.PUSHPLUS_TOKEN
       continue-on-error: true
       run: |
-        curl -k --data "chat_id=${{ env.TELEGRAM_CHAT_ID }}" --data "text=🎉开始编译OpenWrt-360T7固件😋" "https://api.telegram.org/bot${{ env.TELEGRAM_TOKEN }}/sendMessage"
+        echo "FIRMWARE_VERSION=$(date +"%y%m%d")" >> $GITHUB_ENV
+        echo "START_DATE=$(date +'%Y年%m月%d日 %H点%M分%S秒')" >> $GITHUB_ENV
+        curl -k -d "title=开始编译OpenWrt-360T7固件" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}" -d "token=${{ env.PUSHPLUS_TOKEN }}&channel=cp&webhook=server" "http://www.pushplus.plus/send"
     
     - name: 下载源码
       working-directory: /workdir
@@ -96,15 +97,14 @@ jobs:
     - name: 编译固件
       id: compile
       run: |
-        echo "FILE_DATE=$(date +"%Y%m%d")" >> $GITHUB_ENV
         cd openwrt
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s || (curl -k --data "chat_id=${{ env.TELEGRAM_CHAT_ID }}" --data "text=❌OpenWrt-360T7固件编译失败😭" "https://api.telegram.org/bot${{ env.TELEGRAM_TOKEN }}/sendMessage")
+        make -j$(nproc) || make -j1 || make -j1 V=s || (curl -k -d "title=OpenWrt-360T7固件编译失败" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}%0A编译结束时间：$(date +'%Y年%m月%d日 %H点%M分%S秒')" -d "token=${{ env.PUSHPLUS_TOKEN }}&channel=cp&webhook=server" "http://www.pushplus.plus/send")
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: 整理固件
       id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
         # 整理固件包时候,删除您不想要的固件或者文件,让它不需要上传到Actions空间
         cd openwrt/bin/targets/*/*
@@ -115,9 +115,8 @@ jobs:
         rm -rf *kernel*
         rm -rf *.manifest
         rm -rf sha256sums
-        sleep 2
-        mv *sysupgrade.bin ${{ env.FILE_DATE }}-openwrt-360T7-108M-sysupgrade.bin
-        mv *factory.bin ${{ env.FILE_DATE }}-openwrt-360T7-108M-factory.bin
+        mv *sysupgrade.bin ${{ env.FIRMWARE_VERSION }}-OpenWrt-360T7-108M-sysupgrade.bin
+        mv *factory.bin ${{ env.FIRMWARE_VERSION }}-OpenWrt-360T7-108M-factory.bin
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -125,14 +124,14 @@ jobs:
       uses: actions/upload-artifact@main
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
-        name: ${{ env.FILE_DATE }}-OpenWrt-360T7
+        name: ${{ env.FIRMWARE_VERSION }}-OpenWrt-360T7
         path: ${{ env.FIRMWARE }}
 
     - name: 创建release标签
       id: tag
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
-        release_tag="${{ env.FILE_DATE }}-OpenWrt-360T7"
+        release_tag="${{ env.FIRMWARE_VERSION }}-OpenWrt-360T7"
         echo "编译时间：$(date +'%Y年%m月%d日 %H点%M分')" >> release.txt
         echo "默认网关：192.168.3.1" >> release.txt
         echo "默认插件："$(cat extra.config|sed 's/#.*//g;s/CONFIG_PACKAGE_.*=n//g'|sed 's/CONFIG_PACKAGE_\(.*\)=y/\1/g')|sed 's/ /、/g' >> release.txt
@@ -145,15 +144,14 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        name: ${{ env.FILE_DATE }}-OpenWrt-360T7
+        name: ${{ env.FIRMWARE_VERSION }}-OpenWrt-360T7
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
         files: ${{ env.FIRMWARE }}/*
 
-    - name: Telegram 通知
-      if: env.TELEGRAM_TOKEN && ! contains(github.event.action, 'notg')
+    - name: PushPlus 通知
+      if: env.PUSHPLUS_TOKEN
       continue-on-error: true
       run: |
-        curl -k --data "chat_id=${{ env.TELEGRAM_CHAT_ID }}" --data "text=🎉OpenWrt-360T7固件编译成功😋%0A固件版本：${{ env.FILE_DATE }}" "https://api.telegram.org/bot${{ env.TELEGRAM_TOKEN }}/sendMessage"
-
-
+        curl -k -d "title=OpenWrt-360T7固件编译成功" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}%0A编译结束时间：$(date +'%Y年%m月%d日 %H点%M分%S秒')" -d "token=${{ env.PUSHPLUS_TOKEN }}&channel=cp&webhook=server" "http://www.pushplus.plus/send"
+        
