@@ -1,0 +1,156 @@
+#
+# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+# https://github.com/P3TERX/Actions-OpenWrt
+# Description: Build OpenWrt using GitHub Actions
+#
+
+name: OpenWrt-360T7
+
+on:
+  workflow_dispatch:
+    inputs:
+      manual:
+        description: '手动触发一次编译'
+  schedule:
+    - cron: 0 16 * * 5
+
+env:
+  REPO_URL: https://github.com/padavanonly/immortalwrtARM.git
+  REPO_BRANCH: mt7981
+  FEEDS_CONF: feeds.conf.default
+  CONFIG_FILE: 360t7/main.config
+  DIY_P1_SH: 360t7/diy1.sh
+  DIY_P2_SH: 360t7/diy2.sh
+  UPLOAD_FIRMWARE: true
+  UPLOAD_RELEASE: true
+  TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: 检查项目分支
+      uses: actions/checkout@main
+
+    - name: 初始化编译环境
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.eu.org/init_build_environment.sh)'
+        sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
+
+    - name: Telegram 通知
+      if: env.TELEGRAM_TOKEN && ! contains(github.event.action, 'notg')
+      continue-on-error: true
+      run: |
+        curl -k --data "chat_id=${{ env.TELEGRAM_CHAT_ID }}" --data "text=🎉开始编译OpenWrt-360T7固件😋" "https://api.telegram.org/bot${{ env.TELEGRAM_TOKEN }}/sendMessage"
+    
+    - name: 下载源码
+      working-directory: /workdir
+      run: |
+        df -hT $PWD
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+
+    - name: 加载软件源
+      run: |
+        [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
+        chmod +x $DIY_P1_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P1_SH
+
+    - name: 更新软件源
+      run: cd openwrt && ./scripts/feeds update -a
+
+    - name: 安装软件源
+      run: cd openwrt && ./scripts/feeds install -a
+
+    - name: 加载自定义配置
+      run: |
+        [ -e 360t7/files ] && mv 360t7/files openwrt/files
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+        cat 360t7/extra.config >> openwrt/.config
+        chmod +x $DIY_P2_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P2_SH
+
+    - name: 下载包
+      id: package
+      run: |
+        cd openwrt
+        make defconfig
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+
+    - name: 编译固件
+      id: compile
+      run: |
+        echo "FILE_DATE=$(date +"%Y%m%d")" >> $GITHUB_ENV
+        cd openwrt
+        echo -e "$(nproc) thread compile"
+        make -j$(nproc) || make -j1 || make -j1 V=s || (curl -k --data "chat_id=${{ env.TELEGRAM_CHAT_ID }}" --data "text=❌OpenWrt-360T7固件编译失败😭" "https://api.telegram.org/bot${{ env.TELEGRAM_TOKEN }}/sendMessage")
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 整理固件
+      id: organize
+      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      run: |
+        # 整理固件包时候,删除您不想要的固件或者文件,让它不需要上传到Actions空间
+        cd openwrt/bin/targets/*/*
+        rm -rf packages
+        rm -rf version.buildinfo
+        rm -rf profiles.json
+        rm -rf *rootfs*
+        rm -rf *kernel*
+        rm -rf *.manifest
+        rm -rf sha256sums
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 上传固件到Github Action空间
+      uses: actions/upload-artifact@main
+      if: steps.organize.outputs.status == 'success' && !cancelled()
+      with:
+        name: ${{ env.FILE_DATE }}-OpenWrt-360T7
+        path: ${{ env.FIRMWARE }}
+
+    - name: 创建release标签
+      id: tag
+      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      run: |
+        release_tag="${{ env.FILE_DATE }}-OpenWrt-360T7"
+        echo "编译时间：$(date +'%Y年%m月%d日 %H点%M分')" >> release.txt
+        echo "默认网关：192.168.3.1" >> release.txt
+        echo "默认插件："$(cat 360t7/extra.config|sed 's/#.*//g;s/CONFIG_PACKAGE_.*=n//g'|sed 's/CONFIG_PACKAGE_\(.*\)=y/\1/g')|sed 's/ /、/g' >> release.txt
+        echo "release_tag=$release_tag" >> $GITHUB_OUTPUT
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 将固件上传到release
+      uses: softprops/action-gh-release@v1
+      if: steps.tag.outputs.status == 'success' && !cancelled()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        name: ${{ env.FILE_DATE }}-OpenWrt-360T7
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        body_path: release.txt
+        files: ${{ env.FIRMWARE }}/*
+
+    - name: Telegram 通知
+      if: env.TELEGRAM_TOKEN && ! contains(github.event.action, 'notg')
+      continue-on-error: true
+      run: |
+        curl -k --data "chat_id=${{ env.TELEGRAM_CHAT_ID }}" --data "text=🎉OpenWrt-360T7固件编译成功😋%0A固件版本：${{ env.FILE_DATE }}" "https://api.telegram.org/bot${{ env.TELEGRAM_TOKEN }}/sendMessage"
+
+
