@@ -19,12 +19,12 @@ on:
     - cron: 0 16 * * 5
 
 env:
-  REPO_URL: https://github.com/padavanonly/immortalwrtARM.git
+  REPO_URL: https://github.com/padavanonly/immortalwrtARM
   REPO_BRANCH: mt7981
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: 360t7/main.config
-  DIY_P1_SH: 360t7/diy1.sh
-  DIY_P2_SH: 360t7/diy2.sh
+  CONFIG_FILE: main.config
+  DIY_P1_SH: diy1.sh
+  DIY_P2_SH: diy2.sh
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
@@ -77,9 +77,9 @@ jobs:
 
     - name: 加载自定义配置
       run: |
-        [ -e 360t7/files ] && mv 360t7/files openwrt/files
+        [ -e files ] && mv files openwrt/files
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
-        cat 360t7/extra.config >> openwrt/.config
+        cat extra.config >> openwrt/.config
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
@@ -115,6 +115,9 @@ jobs:
         rm -rf *kernel*
         rm -rf *.manifest
         rm -rf sha256sums
+        sleep 2
+        mv *sysupgrade.bin ${{ env.FILE_DATE }}-openwrt-360T7-108M-sysupgrade.bin
+        mv *factory.bin ${{ env.FILE_DATE }}-openwrt-360T7-108M-factory.bin
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -132,7 +135,7 @@ jobs:
         release_tag="${{ env.FILE_DATE }}-OpenWrt-360T7"
         echo "编译时间：$(date +'%Y年%m月%d日 %H点%M分')" >> release.txt
         echo "默认网关：192.168.3.1" >> release.txt
-        echo "默认插件："$(cat 360t7/extra.config|sed 's/#.*//g;s/CONFIG_PACKAGE_.*=n//g'|sed 's/CONFIG_PACKAGE_\(.*\)=y/\1/g')|sed 's/ /、/g' >> release.txt
+        echo "默认插件："$(cat extra.config|sed 's/#.*//g;s/CONFIG_PACKAGE_.*=n//g'|sed 's/CONFIG_PACKAGE_\(.*\)=y/\1/g')|sed 's/ /、/g' >> release.txt
         echo "release_tag=$release_tag" >> $GITHUB_OUTPUT
         echo "status=success" >> $GITHUB_OUTPUT
 
