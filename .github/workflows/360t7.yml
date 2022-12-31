@@ -129,7 +129,7 @@ jobs:
 
     - name: 创建release标签
       id: tag
-      if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
+      if: steps.organize.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
         release_tag="${{ env.FIRMWARE_VERSION }}-OpenWrt-360T7"
         echo "编译时间：$(date +'%Y年%m月%d日 %H点%M分')" >> release.txt
