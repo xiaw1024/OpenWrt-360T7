@@ -2,7 +2,6 @@
 云编译OpenWrt固件，支持360T7
 
 OpenWrt-360T7编译源码
-
 - [hanwckf](https://github.com/hanwckf/immortalwrt-mt798x)
 - [padavanonly](https://github.com/padavanonly/immortalwrtARM)
 
