@@ -54,7 +54,7 @@ jobs:
       if: env.PUSHPLUS_TOKEN
       continue-on-error: true
       run: |
-        curl -k -d "title=开始编译OpenWrt-360T7固件" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}" -d "token=${{ env.PUSHPLUS_TOKEN }}&channel=cp&webhook=server" "http://www.pushplus.plus/send"
+        curl -k -d "title=开始编译OpenWrt-360T7固件" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}" -d "token=${{ env.PUSHPLUS_TOKEN }}" "http://www.pushplus.plus/send"
     
     - name: 下载源码
       working-directory: /workdir
@@ -153,7 +153,7 @@ jobs:
       if: env.PUSHPLUS_TOKEN
       continue-on-error: true
       run: |
-        curl -k -d "title=OpenWrt-360T7固件编译成功" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}%0A编译结束时间：$(date +'%Y年%m月%d日 %H点%M分%S秒')" -d "token=${{ env.PUSHPLUS_TOKEN }}&channel=cp&webhook=server" "http://www.pushplus.plus/send"
+        curl -k -d "title=OpenWrt-360T7固件编译成功" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}%0A编译结束时间：$(date +'%Y年%m月%d日 %H点%M分%S秒')" -d "token=${{ env.PUSHPLUS_TOKEN }}" "http://www.pushplus.plus/send"
 
     - name: 删除工作流运行
       uses: GitRML/delete-workflow-runs@main
