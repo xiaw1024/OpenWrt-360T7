@@ -23,13 +23,11 @@ permissions:
   contents: write
 
 env:
-  REPO_URL: https://github.com/hanwckf/immortalwrt-mt798x
-  REPO_BRANCH: openwrt-21.02
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
+  REPO_BRANCH: openwrt-25.12
   BUILD_ENV_SCRIPT_COMMIT: 04a39ca00d2cd6895c84e1c0670bc719cbd8d9fb
   BUILD_ENV_SCRIPT_SHA256: 85f4b2c2aa16f8178b57250f5d2bcf4a2e0707c6b569a3b07510f41fc6185dd8
-  FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: main.config
-  DIY_P1_SH: diy1.sh
   DIY_P2_SH: diy2.sh
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
@@ -79,20 +77,8 @@ jobs:
         echo "ImmortalWrt commit: $UPSTREAM_COMMIT"
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
-    - name: 加载软件源
-      run: |
-        [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
-        chmod +x $DIY_P1_SH
-        cd openwrt
-        $GITHUB_WORKSPACE/$DIY_P1_SH
-
     - name: 更新软件源
-      run: |
-        cd openwrt
-        ./scripts/feeds update -a
-        echo "small-package commit: $(git -C feeds/small rev-parse HEAD)"
-        echo "rkp-ipid commit: $(git -C package/rkp-ipid rev-parse HEAD)"
-        echo "UA2F commit: $(git -C package/UA2F rev-parse HEAD)"
+      run: cd openwrt && ./scripts/feeds update -a
 
     - name: 安装软件源
       run: cd openwrt && ./scripts/feeds install -a
@@ -145,8 +131,10 @@ jobs:
         rm -rf *kernel*
         rm -rf *.manifest
         rm -rf sha256sums
-        mv *sysupgrade.bin ${{ env.FIRMWARE_VERSION }}-OpenWrt-360T7-108M-sysupgrade.bin
-        mv *factory.bin ${{ env.FIRMWARE_VERSION }}-OpenWrt-360T7-108M-factory.bin
+        mv *sysupgrade.itb ${{ env.FIRMWARE_VERSION }}-ImmortalWrt-360T7-sysupgrade.itb
+        mv *initramfs-recovery.itb ${{ env.FIRMWARE_VERSION }}-ImmortalWrt-360T7-recovery.itb
+        mv *preloader.bin ${{ env.FIRMWARE_VERSION }}-ImmortalWrt-360T7-preloader.bin
+        mv *bl31-uboot.fip ${{ env.FIRMWARE_VERSION }}-ImmortalWrt-360T7-bl31-uboot.fip
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 

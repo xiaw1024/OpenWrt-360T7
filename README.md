@@ -14,11 +14,19 @@
 - **默认主机名**：`360T7`
 - **主要预装插件**：
   - `luci-app-passwall`：科学上网神器
-  - `luci-app-filetransfer`：Web 文件传输
-  - `luci-app-serverchan`：微信/TG 推送通知
-  - `luci-app-accesscontrol`：上网时间与访问控制
+  - `luci-app-filemanager`：Web 文件管理
+  - `luci-app-wechatpush`：微信/TG 推送通知
+  - `luci-app-appfilter`：应用与上网访问控制
   - `luci-app-autoreboot`：计划自动重启
+  - `luci-app-ddns`：动态域名解析
+  - `luci-app-frpc` / `luci-app-natmap`：内网穿透与端口映射
+  - `luci-app-sqm`：智能队列与网络延迟优化
+  - `luci-app-ttyd`：Web 终端
+  - `luci-app-upnp`：UPnP、PCP 与 NAT-PMP
+  - `luci-app-watchcat`：网络连接看门狗
+  - `luci-app-wifischedule`：Wi-Fi 定时开关
   - `luci-app-wol`：网络唤醒
+  - `luci-app-zerotier` / `luci-proto-wireguard`：组网与 VPN
 
 ## 🚀 如何使用 (云编译)
 
@@ -29,19 +37,19 @@
    - 点击右侧的 `Run workflow` 按钮手动触发一次编译。
 4. **下载固件**：
    - 编译通常需要 1 到 2 小时。
-   - 编译成功后，在仓库主页右侧的 **Releases** 页面或 Actions 的 **Artifacts** 区域即可下载固件包。刷机时通常使用 `sysupgrade.bin` 进行系统升级，使用 `factory.bin` 进行首次刷机。
+   - 编译成功后，在仓库主页右侧的 **Releases** 页面或 Actions 的 **Artifacts** 区域即可下载固件包。普通升级使用 `sysupgrade.itb`；`recovery.itb`、`preloader.bin` 和 `bl31-uboot.fip` 仅用于恢复或引导程序安装，不要在普通升级时写入。
+   - 从旧版固件跨大版本升级时不要保留配置，升级前请先备份，并准备串口或救砖环境。
 
 ## 🛠 如何自定义固件
 
 如果你想深度定制自己的专属固件，可以修改以下文件：
 
 - **`main.config` / `extra.config`**：使用标准 OpenWrt `.config` 格式，增删你想要的软件包（将 `=y` 设为安装，`#` 注释或 `=n` 为不安装）。
-- **`diy1.sh`**：在更新软件源之前执行。你可以在这里使用 `git clone` 添加第三方插件源码仓库。
 - **`diy2.sh`**：在更新软件源之后执行。你可以在这里修改默认后台 IP（目前为 `192.168.50.1`）、默认主题、调整内核参数等。
 
 ## 🔗 编译源码与参考资料
 
-- 源码仓库：[hanwckf/immortalwrt-mt798x](https://github.com/hanwckf/immortalwrt-mt798x)
+- 源码仓库：[immortalwrt/immortalwrt](https://github.com/immortalwrt/immortalwrt)（`openwrt-25.12`）
 - 插件对照：[OpenWrt 插件对应中文名称](https://www.right.com.cn/forum/thread-3682029-1-1.html) （仅供参考）
 - 框架鸣谢：[P3TERX/Actions-OpenWrt](https://github.com/P3TERX/Actions-OpenWrt)
 
@@ -63,11 +71,19 @@ The compiled firmware is ready out-of-the-box and integrates commonly used featu
 - **Default Hostname**: `360T7`
 - **Pre-installed Plugins**:
   - `luci-app-passwall`: Advanced proxy and routing tool
-  - `luci-app-filetransfer`: Web-based file transfer
-  - `luci-app-serverchan`: Push notifications (WeChat/Telegram)
-  - `luci-app-accesscontrol`: Internet access and time control
+  - `luci-app-filemanager`: Web-based file management
+  - `luci-app-wechatpush`: Push notifications (WeChat/Telegram)
+  - `luci-app-appfilter`: Application and internet access control
   - `luci-app-autoreboot`: Scheduled automatic reboot
+  - `luci-app-ddns`: Dynamic DNS
+  - `luci-app-frpc` / `luci-app-natmap`: Intranet tunneling and port mapping
+  - `luci-app-sqm`: Smart queue management and latency optimization
+  - `luci-app-ttyd`: Web terminal
+  - `luci-app-upnp`: UPnP, PCP, and NAT-PMP
+  - `luci-app-watchcat`: Network connectivity watchdog
+  - `luci-app-wifischedule`: Scheduled Wi-Fi
   - `luci-app-wol`: Wake on LAN
+  - `luci-app-zerotier` / `luci-proto-wireguard`: Overlay networking and VPN
 
 ## 🚀 How to Use (Cloud Compilation)
 
@@ -78,19 +94,19 @@ The compiled firmware is ready out-of-the-box and integrates commonly used featu
    - Click the `Run workflow` button on the right to trigger a manual compilation.
 4. **Download Firmware**:
    - The build process usually takes 1 to 2 hours.
-   - Once completed, download your firmware packages from the **Releases** page or the **Artifacts** section in the workflow run. Use `sysupgrade.bin` for firmware updates and `factory.bin` for fresh installations.
+   - Once completed, download the firmware from the **Releases** page or the **Artifacts** section. Use `sysupgrade.itb` for normal upgrades. `recovery.itb`, `preloader.bin`, and `bl31-uboot.fip` are only for recovery or bootloader installation.
+   - Do not preserve settings when upgrading from the old firmware across major releases. Back up first and prepare a serial or recovery method.
 
 ## 🛠 Customizing Your Firmware
 
 To deeply customize your firmware, simply edit the following files:
 
 - **`main.config` / `extra.config`**: Modify standard OpenWrt `.config` parameters. Add plugins by setting them to `=y` or remove them by commenting them out.
-- **`diy1.sh`**: Executes before updating feeds. Ideal for adding third-party plugin repositories using `git clone`.
 - **`diy2.sh`**: Executes after updating feeds. Use this to change the default IP address (currently `192.168.50.1`), hostname, default theme, or core system files.
 
 ## 🔗 Source Code & References
 
-- Build Source: [hanwckf/immortalwrt-mt798x](https://github.com/hanwckf/immortalwrt-mt798x)
+- Build Source: [immortalwrt/immortalwrt](https://github.com/immortalwrt/immortalwrt) (`openwrt-25.12`)
 - Plugin Reference: [OpenWrt Plugin Chinese Names Mapping](https://www.right.com.cn/forum/thread-3682029-1-1.html)
 - Framework Credit: [P3TERX/Actions-OpenWrt](https://github.com/P3TERX/Actions-OpenWrt)
 
