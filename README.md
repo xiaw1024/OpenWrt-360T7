@@ -93,3 +93,9 @@ To deeply customize your firmware, simply edit the following files:
 - Build Source: [hanwckf/immortalwrt-mt798x](https://github.com/hanwckf/immortalwrt-mt798x)
 - Plugin Reference: [OpenWrt Plugin Chinese Names Mapping](https://www.right.com.cn/forum/thread-3682029-1-1.html)
 - Framework Credit: [P3TERX/Actions-OpenWrt](https://github.com/P3TERX/Actions-OpenWrt)
+
+## License / 许可证
+
+本仓库自行维护的构建脚本、配置和文档，在没有单独声明且版权持有人有权授权的范围内，使用 [MIT License](LICENSE)。从第三方项目继承或引用的代码继续遵循其原始许可证。OpenWrt、ImmortalWrt 以及编译进固件的第三方软件包分别遵循各自的许可证；本仓库的 MIT License 不表示最终生成的 firmware 中所有组件均采用 MIT License。
+
+Build scripts, configurations, and documentation maintained by this repository are provided under the [MIT License](LICENSE) unless separately stated, and only to the extent that the copyright holder has the right to license them. Code inherited or referenced from third-party projects remains under its original license. OpenWrt, ImmortalWrt, and third-party packages compiled into the firmware remain subject to their respective licenses; this repository's MIT License does not mean that every component in the resulting firmware is licensed under the MIT License.

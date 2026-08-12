@@ -18,16 +18,21 @@ on:
   schedule:
     - cron: 0 16 * * 5
 
+permissions:
+  actions: write
+  contents: write
+
 env:
   REPO_URL: https://github.com/hanwckf/immortalwrt-mt798x
   REPO_BRANCH: openwrt-21.02
+  BUILD_ENV_SCRIPT_COMMIT: 04a39ca00d2cd6895c84e1c0670bc719cbd8d9fb
+  BUILD_ENV_SCRIPT_SHA256: 85f4b2c2aa16f8178b57250f5d2bcf4a2e0707c6b569a3b07510f41fc6185dd8
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: main.config
   DIY_P1_SH: diy1.sh
   DIY_P2_SH: diy2.sh
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
-  PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
   TZ: Asia/Shanghai
 
 jobs:
@@ -36,14 +41,20 @@ jobs:
 
     steps:
     - name: 检查项目分支
-      uses: actions/checkout@v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        persist-credentials: false
 
     - name: 初始化编译环境
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
-        sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+        curl --fail --show-error --silent --location \
+          "https://raw.githubusercontent.com/immortalwrt/build-scripts/$BUILD_ENV_SCRIPT_COMMIT/init_build_environment.sh" \
+          --output /tmp/init_build_environment.sh
+        echo "$BUILD_ENV_SCRIPT_SHA256  /tmp/init_build_environment.sh" | sha256sum --check -
+        sudo bash /tmp/init_build_environment.sh
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
@@ -51,16 +62,21 @@ jobs:
         echo "START_DATE=$(date +'%Y年%m月%d日 %H点%M分%S秒')" >> $GITHUB_ENV
 
     - name: PushPlus 通知
-      if: env.PUSHPLUS_TOKEN
       continue-on-error: true
+      env:
+        PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
       run: |
-        curl -k -d "title=开始编译OpenWrt-360T7固件" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}" -d "token=${{ env.PUSHPLUS_TOKEN }}" "http://www.pushplus.plus/send"
+        [ -n "$PUSHPLUS_TOKEN" ] || exit 0
+        curl --fail --show-error --silent -d "title=开始编译OpenWrt-360T7固件" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}" -d "token=$PUSHPLUS_TOKEN" "https://www.pushplus.plus/send"
     
     - name: 下载源码
       working-directory: /workdir
       run: |
         df -hT $PWD
         git clone $REPO_URL -b $REPO_BRANCH openwrt
+        UPSTREAM_COMMIT=$(git -C openwrt rev-parse HEAD)
+        echo "UPSTREAM_COMMIT=$UPSTREAM_COMMIT" >> "$GITHUB_ENV"
+        echo "ImmortalWrt commit: $UPSTREAM_COMMIT"
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
     - name: 加载软件源
@@ -71,7 +87,12 @@ jobs:
         $GITHUB_WORKSPACE/$DIY_P1_SH
 
     - name: 更新软件源
-      run: cd openwrt && ./scripts/feeds update -a
+      run: |
+        cd openwrt
+        ./scripts/feeds update -a
+        echo "small-package commit: $(git -C feeds/small rev-parse HEAD)"
+        echo "rkp-ipid commit: $(git -C package/rkp-ipid rev-parse HEAD)"
+        echo "UA2F commit: $(git -C package/UA2F rev-parse HEAD)"
 
     - name: 安装软件源
       run: cd openwrt && ./scripts/feeds install -a
@@ -99,8 +120,17 @@ jobs:
       run: |
         cd openwrt
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s || (curl -k -d "title=OpenWrt-360T7固件编译失败" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}%0A编译结束时间：$(date +'%Y年%m月%d日 %H点%M分%S秒')" -d "token=${{ env.PUSHPLUS_TOKEN }}&channel=cp&webhook=server" "http://www.pushplus.plus/send")
+        make -j$(nproc) || make -j1 || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: PushPlus 编译失败通知
+      if: failure()
+      continue-on-error: true
+      env:
+        PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+      run: |
+        [ -n "$PUSHPLUS_TOKEN" ] || exit 0
+        curl --fail --show-error --silent -d "title=OpenWrt-360T7固件编译失败" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}%0A编译结束时间：$(date +'%Y年%m月%d日 %H点%M分%S秒')" -d "token=$PUSHPLUS_TOKEN" -d "channel=cp" -d "webhook=server" "https://www.pushplus.plus/send"
 
     - name: 整理固件
       id: organize
@@ -121,7 +151,7 @@ jobs:
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: 上传固件到Github Action空间
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
         name: ${{ env.FIRMWARE_VERSION }}-OpenWrt-360T7
@@ -133,13 +163,14 @@ jobs:
       run: |
         release_tag="${{ env.FIRMWARE_VERSION }}-OpenWrt-360T7"
         echo "编译时间：$(date +'%Y年%m月%d日 %H点%M分')" >> release.txt
+        echo "ImmortalWrt commit: $UPSTREAM_COMMIT" >> release.txt
         echo "默认网关：192.168.50.1" >> release.txt
         echo "默认插件："$(cat extra.config|sed 's/#.*//g;s/CONFIG_PACKAGE_.*=n//g'|sed 's/CONFIG_PACKAGE_\(.*\)=y/\1/g')|sed 's/ /、/g' >> release.txt
         echo "release_tag=$release_tag" >> $GITHUB_OUTPUT
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: 将固件上传到release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
       if: steps.tag.outputs.status == 'success' && !cancelled()
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -150,19 +181,22 @@ jobs:
         files: ${{ env.FIRMWARE }}/*
 
     - name: PushPlus 通知
-      if: env.PUSHPLUS_TOKEN
+      if: steps.compile.outputs.status == 'success'
       continue-on-error: true
+      env:
+        PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
       run: |
-        curl -k -d "title=OpenWrt-360T7固件编译成功" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}%0A编译结束时间：$(date +'%Y年%m月%d日 %H点%M分%S秒')" -d "token=${{ env.PUSHPLUS_TOKEN }}" "http://www.pushplus.plus/send"
+        [ -n "$PUSHPLUS_TOKEN" ] || exit 0
+        curl --fail --show-error --silent -d "title=OpenWrt-360T7固件编译成功" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}%0A编译结束时间：$(date +'%Y年%m月%d日 %H点%M分%S秒')" -d "token=$PUSHPLUS_TOKEN" "https://www.pushplus.plus/send"
 
     - name: 删除工作流运行
-      uses: Mattraks/delete-workflow-runs@v2
+      uses: Mattraks/delete-workflow-runs@0cf693bc9909e5e867ee8f27b813224ba862939c # v2
       with:
         retain_days: 1
         keep_minimum_runs: 3
 
     - name: 删除旧的releases
-      uses: dev-drprasad/delete-older-releases@v0.3.3
+      uses: dev-drprasad/delete-older-releases@0bf4e6748f08135170c2294f877ba7d9b633b028 # v0.3.3
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
         keep_latest: 3
